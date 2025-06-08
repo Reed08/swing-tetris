@@ -1,7 +1,11 @@
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.io.File;
 import java.util.ArrayList;
 
 public class Main {
@@ -23,6 +27,10 @@ public class Main {
         private static JFrame frame;
         private static boolean stopped = false;
         private static final Object gameLock = new Object();
+
+        private static AudioInputStream musicStream;
+        private static AudioInputStream deathStream;
+        private static Clip clip;
 
         // #region Colors
         private static final Color[] COLORS = {
@@ -238,7 +246,7 @@ public class Main {
         };
         // #endregion
 
-        public static void main(String[] args) {
+        public static void main(String[] args) throws Exception {
                 frame = new JFrame("Tetris");
                 frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
                 frame.setResizable(false);
@@ -287,6 +295,13 @@ public class Main {
                         drawShape(nextSquares, 0, 0, 4, nextColor, nextShape, 0);
                 }
                 first = true;
+
+                musicStream = AudioSystem.getAudioInputStream(new File("music.wav").getAbsoluteFile());
+                clip = AudioSystem.getClip();
+                clip.open(musicStream);
+                clip.loop(Clip.LOOP_CONTINUOUSLY);
+                clip.start();
+
                 frame.addKeyListener(new KeyAdapter() {
                         public void keyPressed(KeyEvent e) {
                                 if (stopped)
@@ -379,11 +394,67 @@ public class Main {
                                                                 removeShape(gameSquares, currentColor);
                                                                 removeShape(nextSquares, nextColor);
                                                                 gameTimer.stop();
+                                                                clip.stop();
+                                                                clip.close();
+                                                                try {
+                                                                        deathStream = AudioSystem.getAudioInputStream(
+                                                                                        new File("death.wav")
+                                                                                                        .getAbsoluteFile());
+                                                                        clip.open(deathStream);
+                                                                } catch (Exception ex) {
+                                                                        ex.printStackTrace();
+                                                                }
+                                                                clip.loop(0);
+                                                                clip.start();
                                                                 stopped = true;
-                                                                JOptionPane.showMessageDialog(frame, "Play again?");
+                                                                int result = JOptionPane.showConfirmDialog(frame,
+                                                                                "Game Over! Would you like to play again?",
+                                                                                "Game Over",
+                                                                                JOptionPane.YES_NO_OPTION);
+                                                                if (result == JOptionPane.YES_OPTION) {
+                                                                        points = 0;
+                                                                        cleans = 0;
+                                                                        pointsLabel.setText("Points: 0");
+                                                                        cleansLabel.setText("Cleans: 0");
+                                                                        for (Color c : COLORS) {
+                                                                                removeShape(gameSquares, c);
+                                                                                removeShape(nextSquares, c);
+                                                                        }
+                                                                        currentColor = getColor();
+                                                                        currentShape = (int) (Math.random()
+                                                                                        * SHAPES.length);
+                                                                        drawShape(gameSquares, 4, 0, 10, currentColor,
+                                                                                        currentShape, currentRot);
+                                                                        nextColor = getColor();
+                                                                        nextShape = (int) (Math.random()
+                                                                                        * SHAPES.length);
+                                                                        drawShape(nextSquares, 0, 0, 4, nextColor,
+                                                                                        nextShape, 0);
+                                                                        first = true;
+                                                                        stopped = false;
+                                                                        clip.stop();
+                                                                        clip.close();
+                                                                        try {
+                                                                                musicStream = AudioSystem
+                                                                                                .getAudioInputStream(
+                                                                                                                new File("music.wav")
+                                                                                                                                .getAbsoluteFile());
+                                                                                clip.open(musicStream);
+                                                                        } catch (Exception ex) {
+                                                                                ex.printStackTrace();
+                                                                        }
+                                                                        clip.loop(Clip.LOOP_CONTINUOUSLY);
+                                                                        clip.start();
+                                                                        gameTimer.setDelay(750);
+                                                                        gameTimer.start();
+                                                                } else {
+                                                                        System.exit(0);
+                                                                }
                                                                 break;
                                                         } else {
                                                                 first = false;
+                                                                points += 2;
+                                                                pointsLabel.setText("Points: " + points);
                                                         }
                                                 }
                                         }
@@ -401,6 +472,10 @@ public class Main {
 
                 gameTimer = new Timer(750, _ -> {
                         synchronized (gameLock) {
+                                if (gameTimer.getDelay() == 100) {
+                                        points++;
+                                        pointsLabel.setText("Points: " + points);
+                                }
                                 int shapeY = getMinY(gameSquares, currentColor, 10);
                                 int shapeX = getMinX(gameSquares, currentColor, 10);
                                 removeShape(gameSquares, currentColor);
@@ -425,8 +500,56 @@ public class Main {
                                         removeShape(gameSquares, currentColor);
                                         removeShape(nextSquares, nextColor);
                                         gameTimer.stop();
+                                        clip.stop();
+                                        clip.close();
+                                        try {
+                                                deathStream = AudioSystem.getAudioInputStream(
+                                                                new File("death.wav").getAbsoluteFile());
+                                                clip.open(deathStream);
+                                        } catch (Exception ex) {
+                                                ex.printStackTrace();
+                                        }
+                                        clip.loop(0);
+                                        clip.start();
                                         stopped = true;
-                                        JOptionPane.showMessageDialog(frame, "Play again?");
+                                        int result = JOptionPane.showConfirmDialog(frame,
+                                                        "Game Over! Would you like to play again?",
+                                                        "Game Over",
+                                                        JOptionPane.YES_NO_OPTION);
+                                        if (result == JOptionPane.YES_OPTION) {
+                                                points = 0;
+                                                cleans = 0;
+                                                pointsLabel.setText("Points: 0");
+                                                cleansLabel.setText("Cleans: 0");
+                                                for (Color c : COLORS) {
+                                                        removeShape(gameSquares, c);
+                                                        removeShape(nextSquares, c);
+                                                }
+                                                currentColor = getColor();
+                                                currentShape = (int) (Math.random() * SHAPES.length);
+                                                drawShape(gameSquares, 4, 0, 10, currentColor, currentShape,
+                                                                currentRot);
+                                                nextColor = getColor();
+                                                nextShape = (int) (Math.random() * SHAPES.length);
+                                                drawShape(nextSquares, 0, 0, 4, nextColor, nextShape, 0);
+                                                first = true;
+                                                stopped = false;
+                                                clip.stop();
+                                                clip.close();
+                                                try {
+                                                        musicStream = AudioSystem.getAudioInputStream(
+                                                                        new File("music.wav").getAbsoluteFile());
+                                                        clip.open(musicStream);
+                                                } catch (Exception ex) {
+                                                        ex.printStackTrace();
+                                                }
+                                                clip.loop(Clip.LOOP_CONTINUOUSLY);
+                                                clip.start();
+                                                gameTimer.setDelay(750);
+                                                gameTimer.start();
+                                        } else {
+                                                System.exit(0);
+                                        }
                                 } else {
                                         first = false;
                                 }
