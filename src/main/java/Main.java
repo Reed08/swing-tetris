@@ -1,41 +1,58 @@
+// Developer: Lincoln Farkas
+
 package src.main.java;
 
-import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.Clip;
+import javax.sound.sampled.*;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
-import java.io.BufferedInputStream;
-import java.io.InputStream;
+import java.awt.event.*;
+import java.io.*;
 import java.util.ArrayList;
 
+/**
+ * Main class for the Tetris game.
+ * Handles game initialization, UI setup, game loop, and user input.
+ */
 public class Main {
+        // Stores the panels representing the main game grid (20x10)
         private static ArrayList<JPanel> gameSquares = new ArrayList<JPanel>();
+        // Stores the panels representing the "next" piece preview (2x4)
         private static ArrayList<JPanel> nextSquares = new ArrayList<JPanel>();
 
+        // Player's current score and number of lines cleared
         private static int points = 0;
         private static int cleans = 0;
 
+        // Current and next piece color and shape info
         private static Color currentColor;
         private static int currentShape;
         private static int currentRot;
         private static Color nextColor;
         private static int nextShape;
-        private static boolean first = true;
+        private static boolean first = true; // True if the current piece is the first in a new round
+
+        // UI labels for points and cleans
         private static JLabel pointsLabel;
         private static JLabel cleansLabel;
-        private static Timer gameTimer;
+        private static Timer gameTimer; // Main game timer for piece falling
         private static JFrame frame;
-        private static boolean stopped = false;
-        private static final Object gameLock = new Object();
+        private static boolean stopped = false; // Game over state
+        private static final Object gameLock = new Object(); // Synchronization lock for thread safety; had problems
+                                                             // with race conditions between main loop and hard drop
+                                                             // early on
 
+        // Audio resources for background music and death sound
         private static AudioInputStream musicStream;
         private static AudioInputStream deathStream;
         private static Clip clip;
 
         // #region Colors
+        /**
+         * Array of possible colors for tetrominoes.
+         * Using a wide palette for visual variety and to avoid color repetition.
+         * 50 colors because max number of tetronimoes at once = 200 squares / 4 squares
+         * per tetronimoe = 50 tetronimoes.
+         */
         private static final Color[] COLORS = {
                         new Color(230, 34, 34),
                         new Color(230, 58, 34),
@@ -91,6 +108,13 @@ public class Main {
         // #endregion
 
         // #region Shapes
+        /**
+         * 4D array representing all tetromino shapes and their rotations.
+         * Each shape contains multiple rotations, each as a 4x4 boolean grid.
+         * It took a while to make each rotation combo for each tetronimoe at first, but
+         * it enabled quicker development than making an algorithm to programmatically
+         * rotate the pieces.
+         */
         private static final boolean[][][][] SHAPES = {
                         // I tetronimoe
                         {
@@ -249,16 +273,30 @@ public class Main {
         };
         // #endregion
 
+        /**
+         * Loads an audio resource from the classpath and returns a buffered stream.
+         * 
+         * @param resourcePath Path to the audio resource.
+         * @return Buffered AudioInputStream for playback.
+         * @throws Exception if the resource is not found.
+         */
         private static AudioInputStream getBufferedAudioInputStream(String resourcePath) throws Exception {
                 InputStream resourceStream = Main.class.getResourceAsStream(resourcePath);
                 if (resourceStream == null) {
                         throw new Exception("Resource not found: " + resourcePath);
                 }
+                // Learned that buffered input streams were required for packaged applications
+                // when original implementation caused exception
                 BufferedInputStream bufferedStream = new BufferedInputStream(resourceStream);
                 return AudioSystem.getAudioInputStream(bufferedStream);
         }
 
+        /**
+         * Main entry point for the Tetris game.
+         * Sets up the UI, initializes game state, and starts the game loop.
+         */
         public static void main(String[] args) throws Exception {
+                // JFrame and main panel setup
                 frame = new JFrame("Tetris");
                 frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
                 frame.setResizable(false);
@@ -296,6 +334,8 @@ public class Main {
                 frame.setVisible(true);
                 frame.setFocusable(true);
                 frame.requestFocusInWindow();
+
+                // Initialize the first and next tetrominoes
                 currentColor = getColor();
                 currentShape = (int) (Math.random() * SHAPES.length);
                 synchronized (gameLock) {
@@ -308,24 +348,32 @@ public class Main {
                 }
                 first = true;
 
+                // Load and start background music
                 musicStream = getBufferedAudioInputStream("/music.wav");
                 clip = AudioSystem.getClip();
                 clip.open(musicStream);
                 clip.loop(Clip.LOOP_CONTINUOUSLY);
                 clip.start();
 
+                // Add key listener for player controls (move, rotate, drop, etc.)
                 frame.addKeyListener(new KeyAdapter() {
                         public void keyPressed(KeyEvent e) {
+                                // Prevent input if game is stopped
                                 if (stopped)
                                         return;
                                 synchronized (gameLock) {
+                                        // Get current piece position
                                         int shapeY = getMinY(gameSquares, currentColor, 10);
                                         int shapeX = getMinX(gameSquares, currentColor, 10);
+
+                                        // Handle left/right movement
                                         if (e.getKeyCode() == KeyEvent.VK_LEFT) {
                                                 removeShape(gameSquares, currentColor);
                                                 boolean possible = drawShape(gameSquares, shapeX - 1, shapeY, 10,
                                                                 currentColor,
                                                                 currentShape, currentRot);
+                                                // All if(!possible) statements revert position/rotation if new values
+                                                // would cause collisions or bound issues
                                                 if (!possible) {
                                                         removeShape(gameSquares, currentColor);
                                                         drawShape(gameSquares, shapeX, shapeY, 10, currentColor,
@@ -343,7 +391,10 @@ public class Main {
                                                                         currentShape,
                                                                         currentRot);
                                                 }
-                                        } else if (e.getKeyCode() == KeyEvent.VK_UP) {
+                                        }
+
+                                        // Handle rotation
+                                        else if (e.getKeyCode() == KeyEvent.VK_UP) {
                                                 currentRot++;
                                                 if (currentRot >= SHAPES[currentShape].length) {
                                                         currentRot = 0;
@@ -362,9 +413,15 @@ public class Main {
                                                                         currentShape,
                                                                         currentRot);
                                                 }
-                                        } else if (e.getKeyCode() == KeyEvent.VK_DOWN) {
+                                        }
+
+                                        // Handle soft drop (down arrow)
+                                        else if (e.getKeyCode() == KeyEvent.VK_DOWN) {
                                                 gameTimer.setDelay(100);
-                                        } else if (e.getKeyCode() == KeyEvent.VK_SPACE) {
+                                        }
+
+                                        // Handle hard drop (space bar)
+                                        else if (e.getKeyCode() == KeyEvent.VK_SPACE) {
                                                 int dropCount = 0;
                                                 int maxDrops = 20;
 
@@ -471,6 +528,7 @@ public class Main {
                         }
 
                         public void keyReleased(KeyEvent e) {
+                                // Restore normal drop speed after soft drop
                                 if (stopped)
                                         return;
                                 if (e.getKeyCode() == KeyEvent.VK_DOWN) {
@@ -479,12 +537,15 @@ public class Main {
                         }
                 });
 
+                // Main game timer: moves the piece down at intervals
                 gameTimer = new Timer(750, _ -> {
                         synchronized (gameLock) {
+                                // Award extra points for soft drop
                                 if (gameTimer.getDelay() == 100) {
                                         points++;
                                         pointsLabel.setText("Points: " + points);
                                 }
+                                // Move piece down, check for collision, handle new piece or game over
                                 int shapeY = getMinY(gameSquares, currentColor, 10);
                                 int shapeX = getMinX(gameSquares, currentColor, 10);
                                 removeShape(gameSquares, currentColor);
@@ -565,6 +626,14 @@ public class Main {
                 gameTimer.start();
         }
 
+        /**
+         * Creates a grid of JPanels for the game or next piece preview.
+         * 
+         * @param p       The parent panel.
+         * @param squares The list to store the created panels.
+         * @param rows    Number of rows.
+         * @param cols    Number of columns.
+         */
         private static void createSquareLayout(JPanel p, ArrayList<JPanel> squares, int rows, int cols) {
                 p.removeAll();
                 p.setLayout(new GridLayout(rows, cols));
@@ -577,6 +646,10 @@ public class Main {
                 }
         }
 
+        /**
+         * Returns the width (number of columns) of a tetromino pattern.
+         * Used for collision and boundary checking.
+         */
         private static int getWidth(boolean[][] p) {
                 int largestWidth = 0;
                 for (int i = 0; i < p.length; i++) {
@@ -589,6 +662,10 @@ public class Main {
                 return largestWidth;
         }
 
+        /**
+         * Returns the height (number of rows) of a tetromino pattern.
+         * Used for collision and boundary checking.
+         */
         private static int getHeight(boolean[][] p) {
                 int largestHeight = 0;
                 for (int i = 0; i < p.length; i++) {
@@ -601,6 +678,19 @@ public class Main {
                 return largestHeight;
         }
 
+        /**
+         * Attempts to draw a tetromino shape at the specified position.
+         * Returns false if the shape would collide or go out of bounds.
+         * 
+         * @param squares The grid to draw on.
+         * @param startX  X position.
+         * @param startY  Y position.
+         * @param width   Grid width.
+         * @param c       Color of the shape.
+         * @param shape   Shape index.
+         * @param rot     Rotation index.
+         * @return true if drawing was successful, false otherwise.
+         */
         private static boolean drawShape(ArrayList<JPanel> squares, int startX, int startY, int width, Color c,
                         int shape,
                         int rot) {
@@ -627,6 +717,11 @@ public class Main {
                 return true;
         }
 
+        /**
+         * Randomly selects a color for a new tetromino, ensuring it is not currently
+         * used.
+         * This avoids visual confusion between active and upcoming pieces.
+         */
         private static Color getColor() {
                 Color color = COLORS[(int) (Math.random() * COLORS.length)];
                 boolean used = true;
@@ -649,6 +744,10 @@ public class Main {
                 return color;
         }
 
+        /**
+         * Finds the minimum X coordinate of the current piece in the grid.
+         * Used for movement and collision logic.
+         */
         private static int getMinX(ArrayList<JPanel> squares, Color color, int width) {
                 int minColorX = width;
                 for (int i = 0; i < squares.size(); i++) {
@@ -661,6 +760,10 @@ public class Main {
                 return minColorX;
         }
 
+        /**
+         * Finds the minimum Y coordinate of the current piece in the grid.
+         * Used for movement and collision logic.
+         */
         private static int getMinY(ArrayList<JPanel> squares, Color color, int width) {
                 int minColorY = squares.size() / width;
                 for (int i = 0; i < squares.size(); i++) {
@@ -673,6 +776,10 @@ public class Main {
                 return minColorY;
         }
 
+        /**
+         * Removes all squares of the given color from the grid.
+         * Used to erase the current piece before moving or rotating.
+         */
         private static void removeShape(ArrayList<JPanel> squares, Color color) {
                 for (int i = 0; i < squares.size(); i++) {
                         if (squares.get(i).getBackground().equals(color))
@@ -680,8 +787,16 @@ public class Main {
                 }
         }
 
+        /**
+         * Checks for completed lines, clears them, and updates score and cleans.
+         * Implements Tetris scoring: more points for clearing multiple lines at once.
+         * 
+         * @param squares The game grid.
+         * @param width   Grid width.
+         */
         private static void checkCleans(ArrayList<JPanel> squares, int width) {
                 ArrayList<Integer> toClean = new ArrayList<Integer>();
+                // Scan from bottom up for full lines
                 for (int i = squares.size() / width - 1; i >= 0; i--) {
                         boolean isClean = true;
                         for (int j = 0; j < width; j++) {
@@ -694,6 +809,7 @@ public class Main {
                                 cleans++;
                                 toClean.add(i);
                         } else {
+                                // If there are lines to clear, clear them and update score
                                 if (toClean.size() > 0) {
                                         for (int j = toClean.get(0); j <= toClean.get(toClean.size() - 1); j++) {
                                                 for (int k = 0; k < width; k++) {
@@ -701,6 +817,7 @@ public class Main {
                                                                         .setBackground(Color.WHITE);
                                                 }
                                         }
+                                        // Scoring logic: more lines = more points
                                         if (toClean.size() == 1) {
                                                 points += 40;
                                                 cleans += 1;
@@ -717,6 +834,7 @@ public class Main {
                                                 pointsLabel.setText("Points: " + points);
                                                 cleansLabel.setText("Cleans: " + cleans);
                                         } else {
+                                                // For 4 or more lines (should only be 4 in Tetris), bonus points
                                                 points += 300 * toClean.size();
                                                 cleans += toClean.size();
                                                 pointsLabel.setText("Points: " + points);
