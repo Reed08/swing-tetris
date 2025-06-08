@@ -262,25 +262,42 @@ public class Main {
                 Color nextColor = getColor();
                 int nextShape = (int) (Math.random() * SHAPES.length);
                 drawShape(nextSquares, 0, 0, 4, nextColor, nextShape, 0);
+                boolean first = true;
                 while (true) {
-                        if (checkStopped(gameSquares, currentColor, 10)) {
+                        int shapeY = getMinY(gameSquares, currentColor, 10) + 1;
+                        int shapeX = getMinX(gameSquares, currentColor, 10);
+                        removeShape(gameSquares, currentColor);
+                        boolean possible = drawShape(gameSquares, shapeX, shapeY, 10, currentColor, currentShape, 0);
+                        if (!possible && !first) {
+                                removeShape(gameSquares, currentColor);
+                                drawShape(gameSquares, shapeX, shapeY - 1, 10, currentColor, currentShape, 0);
                                 drawShape(gameSquares, 4, 0, 10, nextColor, nextShape, 0);
+                                first = true;
                                 currentColor = nextColor;
                                 currentShape = nextShape;
+                                removeShape(nextSquares, nextColor);
                                 nextColor = getColor();
                                 nextShape = (int) (Math.random() * SHAPES.length);
-                                createSquareLayout(nextSquaresPanel, nextSquares, 2, 4);
                                 drawShape(nextSquares, 0, 0, 4, nextColor, nextShape, 0);
-                        } else {
-                                int shapeY = getMinY(gameSquares, currentColor, 10) + 1;
-                                int shapeX = getMinX(gameSquares, currentColor, 10);
+                        } else if (!possible && first) {
                                 removeShape(gameSquares, currentColor);
-                                drawShape(gameSquares, shapeX, shapeY, 10, currentColor, currentShape, 0);
+                                drawShape(gameSquares, shapeX, shapeY - 1, 10, currentColor, currentShape, 0);
+                                removeShape(nextSquares, nextColor);
+                                break;
+                        } else {
+                                first = false;
+                        }
+
+                        try {
+                                Thread.sleep(750);
+                        } catch (InterruptedException e) {
+                                e.printStackTrace();
                         }
                 }
         }
 
         private static void createSquareLayout(JPanel p, ArrayList<JPanel> squares, int rows, int cols) {
+                p.removeAll();
                 p.setLayout(new GridLayout(rows, cols));
                 for (int i = 0; i < rows * cols; i++) {
                         JPanel newPanel = new JPanel();
@@ -328,9 +345,15 @@ public class Main {
                         return false;
                 }
                 for (int i = startIdx; i <= endIdx; i++) {
-                        if (pattern[(i - startIdx) / 4][(i - startIdx) % 4]) {
-                                squares.get(i).setBackground(c);
+                        if ((i - startIdx) / width < pattern.length && (i - startIdx) % width < pattern[0].length
+                                        && pattern[(i - startIdx) / width][(i - startIdx) % width]) {
+                                if (!squares.get(i).getBackground().equals(Color.WHITE)) {
+                                        return false;
+                                } else {
+                                        squares.get(i).setBackground(c);
+                                }
                         }
+
                 }
                 return true;
         }
@@ -369,18 +392,6 @@ public class Main {
                 return minColorX;
         }
 
-        private static int getMaxX(ArrayList<JPanel> squares, Color color, int width) {
-                int maxColorX = -1;
-                for (int i = 0; i < squares.size(); i++) {
-                        if (squares.get(i).getBackground().equals(color)) {
-                                if (i % width > maxColorX) {
-                                        maxColorX = i % width;
-                                }
-                        }
-                }
-                return maxColorX;
-        }
-
         private static int getMinY(ArrayList<JPanel> squares, Color color, int width) {
                 int minColorY = squares.size() / width;
                 for (int i = 0; i < squares.size(); i++) {
@@ -391,30 +402,6 @@ public class Main {
                         }
                 }
                 return minColorY;
-        }
-
-        private static int getMaxY(ArrayList<JPanel> squares, Color color, int width) {
-                int maxColorY = -1;
-                for (int i = 0; i < squares.size(); i++) {
-                        if (squares.get(i).getBackground().equals(color)) {
-                                maxColorY = i / width;
-                        }
-                }
-                return maxColorY;
-        }
-
-        private static boolean checkStopped(ArrayList<JPanel> squares, Color color, int width) {
-                int minColorX = getMinX(squares, color, width);
-                int maxColorX = getMaxX(squares, color, width);
-                int colorY = getMaxY(squares, color, width);
-                if (colorY == squares.size() / width - 1)
-                        return true;
-                for (int i = minColorX; i <= maxColorX; i++) {
-                        if (!squares.get((colorY + 1) * width + i).getBackground().equals(Color.WHITE)) {
-                                return true;
-                        }
-                }
-                return false;
         }
 
         private static void removeShape(ArrayList<JPanel> squares, Color color) {
