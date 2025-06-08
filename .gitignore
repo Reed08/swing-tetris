@@ -1,1 +1,4 @@
 *.class
+*.dmg
+*.exe
+*.jar
