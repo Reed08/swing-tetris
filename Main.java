@@ -8,6 +8,9 @@ public class Main {
         private static ArrayList<JPanel> gameSquares = new ArrayList<JPanel>();
         private static ArrayList<JPanel> nextSquares = new ArrayList<JPanel>();
 
+        private static int points = 0;
+        private static int cleans = 0;
+
         private static Color currentColor;
         private static int currentShape;
         private static int currentRot;
@@ -273,7 +276,6 @@ public class Main {
                 frame.setVisible(true);
                 frame.setFocusable(true);
                 frame.requestFocusInWindow();
-
                 currentColor = getColor();
                 currentShape = (int) (Math.random() * SHAPES.length);
                 synchronized (gameLock) {
@@ -285,7 +287,6 @@ public class Main {
                         drawShape(nextSquares, 0, 0, 4, nextColor, nextShape, 0);
                 }
                 first = true;
-
                 frame.addKeyListener(new KeyAdapter() {
                         public void keyPressed(KeyEvent e) {
                                 if (stopped)
@@ -361,6 +362,7 @@ public class Main {
                                                                 removeShape(gameSquares, currentColor);
                                                                 drawShape(gameSquares, shapeX, shapeY, 10, currentColor,
                                                                                 currentShape, currentRot);
+                                                                checkCleans(gameSquares, 10);
                                                                 currentRot = 0;
                                                                 drawShape(gameSquares, 4, 0, 10, nextColor, nextShape,
                                                                                 currentRot);
@@ -378,6 +380,7 @@ public class Main {
                                                                 removeShape(nextSquares, nextColor);
                                                                 gameTimer.stop();
                                                                 stopped = true;
+                                                                JOptionPane.showMessageDialog(frame, "Play again?");
                                                                 break;
                                                         } else {
                                                                 first = false;
@@ -408,6 +411,7 @@ public class Main {
                                         removeShape(gameSquares, currentColor);
                                         drawShape(gameSquares, shapeX, shapeY, 10, currentColor, currentShape,
                                                         currentRot);
+                                        checkCleans(gameSquares, 10);
                                         currentRot = 0;
                                         drawShape(gameSquares, 4, 0, 10, nextColor, nextShape, currentRot);
                                         first = true;
@@ -422,6 +426,7 @@ public class Main {
                                         removeShape(nextSquares, nextColor);
                                         gameTimer.stop();
                                         stopped = true;
+                                        JOptionPane.showMessageDialog(frame, "Play again?");
                                 } else {
                                         first = false;
                                 }
@@ -542,6 +547,54 @@ public class Main {
                 for (int i = 0; i < squares.size(); i++) {
                         if (squares.get(i).getBackground().equals(color))
                                 squares.get(i).setBackground(Color.WHITE);
+                }
+        }
+
+        private static void checkCleans(ArrayList<JPanel> squares, int width) {
+                ArrayList<Integer> toClean = new ArrayList<Integer>();
+                for (int i = squares.size() / width - 1; i >= 0; i--) {
+                        boolean isClean = true;
+                        for (int j = 0; j < width; j++) {
+                                if (squares.get(i * width + j).getBackground().equals(Color.WHITE)) {
+                                        isClean = false;
+                                        break;
+                                }
+                        }
+                        if (isClean) {
+                                cleans++;
+                                toClean.add(i);
+                        } else {
+                                if (toClean.size() > 0) {
+                                        for (int j = toClean.get(0); j <= toClean.get(toClean.size() - 1); j++) {
+                                                for (int k = 0; k < width; k++) {
+                                                        squares.get(j * width + k)
+                                                                        .setBackground(Color.WHITE);
+                                                }
+                                        }
+                                        if (toClean.size() == 1) {
+                                                points += 40;
+                                                cleans += 1;
+                                                pointsLabel.setText("Points: " + points);
+                                                cleansLabel.setText("Cleans: " + cleans);
+                                        } else if (toClean.size() == 2) {
+                                                points += 100;
+                                                cleans += 2;
+                                                pointsLabel.setText("Points: " + points);
+                                                cleansLabel.setText("Cleans: " + cleans);
+                                        } else if (toClean.size() == 3) {
+                                                points += 300;
+                                                cleans += 3;
+                                                pointsLabel.setText("Points: " + points);
+                                                cleansLabel.setText("Cleans: " + cleans);
+                                        } else {
+                                                points += 300 * toClean.size();
+                                                cleans += toClean.size();
+                                                pointsLabel.setText("Points: " + points);
+                                                cleansLabel.setText("Cleans: " + cleans);
+                                        }
+                                        toClean.clear();
+                                }
+                        }
                 }
         }
 }
