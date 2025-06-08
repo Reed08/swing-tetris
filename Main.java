@@ -1,10 +1,25 @@
 import javax.swing.*;
 import java.awt.*;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.util.ArrayList;
 
 public class Main {
         private static ArrayList<JPanel> gameSquares = new ArrayList<JPanel>();
         private static ArrayList<JPanel> nextSquares = new ArrayList<JPanel>();
+
+        private static Color currentColor;
+        private static int currentShape;
+        private static int currentRot;
+        private static Color nextColor;
+        private static int nextShape;
+        private static boolean first = true;
+        private static JLabel pointsLabel;
+        private static JLabel cleansLabel;
+        private static Timer gameTimer;
+        private static JFrame frame;
+        private static boolean stopped = false;
+        private static final Object gameLock = new Object();
 
         // #region Colors
         private static final Color[] COLORS = {
@@ -221,7 +236,7 @@ public class Main {
         // #endregion
 
         public static void main(String[] args) {
-                JFrame frame = new JFrame("Tetris");
+                frame = new JFrame("Tetris");
                 frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
                 frame.setResizable(false);
                 JPanel panel = new JPanel();
@@ -233,11 +248,11 @@ public class Main {
                 JPanel infoPanel = new JPanel();
                 infoPanel.setBackground(Color.BLUE);
                 infoPanel.setLayout(new GridLayout(3, 1));
-                JLabel pointsLabel = new JLabel("Points: 0", SwingConstants.CENTER);
+                pointsLabel = new JLabel("Points: 0", SwingConstants.CENTER);
                 pointsLabel.setFont(new Font("Arial", Font.PLAIN, 32));
                 pointsLabel.setForeground(Color.WHITE);
                 infoPanel.add(pointsLabel);
-                JLabel cleansLabel = new JLabel("Cleans: 0", SwingConstants.CENTER);
+                cleansLabel = new JLabel("Cleans: 0", SwingConstants.CENTER);
                 cleansLabel.setFont(new Font("Arial", Font.PLAIN, 32));
                 cleansLabel.setForeground(Color.WHITE);
                 infoPanel.add(cleansLabel);
@@ -256,44 +271,163 @@ public class Main {
                 frame.add(panel);
                 frame.setSize(1000, 1000);
                 frame.setVisible(true);
-                Color currentColor = getColor();
-                int currentShape = (int) (Math.random() * SHAPES.length);
-                drawShape(gameSquares, 4, 0, 10, currentColor, currentShape, 0);
-                Color nextColor = getColor();
-                int nextShape = (int) (Math.random() * SHAPES.length);
-                drawShape(nextSquares, 0, 0, 4, nextColor, nextShape, 0);
-                boolean first = true;
-                while (true) {
-                        int shapeY = getMinY(gameSquares, currentColor, 10) + 1;
-                        int shapeX = getMinX(gameSquares, currentColor, 10);
-                        removeShape(gameSquares, currentColor);
-                        boolean possible = drawShape(gameSquares, shapeX, shapeY, 10, currentColor, currentShape, 0);
-                        if (!possible && !first) {
-                                removeShape(gameSquares, currentColor);
-                                drawShape(gameSquares, shapeX, shapeY - 1, 10, currentColor, currentShape, 0);
-                                drawShape(gameSquares, 4, 0, 10, nextColor, nextShape, 0);
-                                first = true;
-                                currentColor = nextColor;
-                                currentShape = nextShape;
-                                removeShape(nextSquares, nextColor);
-                                nextColor = getColor();
-                                nextShape = (int) (Math.random() * SHAPES.length);
-                                drawShape(nextSquares, 0, 0, 4, nextColor, nextShape, 0);
-                        } else if (!possible && first) {
-                                removeShape(gameSquares, currentColor);
-                                drawShape(gameSquares, shapeX, shapeY - 1, 10, currentColor, currentShape, 0);
-                                removeShape(nextSquares, nextColor);
-                                break;
-                        } else {
-                                first = false;
+                frame.setFocusable(true);
+                frame.requestFocusInWindow();
+
+                currentColor = getColor();
+                currentShape = (int) (Math.random() * SHAPES.length);
+                synchronized (gameLock) {
+                        drawShape(gameSquares, 4, 0, 10, currentColor, currentShape, currentRot);
+                }
+                nextColor = getColor();
+                nextShape = (int) (Math.random() * SHAPES.length);
+                synchronized (gameLock) {
+                        drawShape(nextSquares, 0, 0, 4, nextColor, nextShape, 0);
+                }
+                first = true;
+
+                frame.addKeyListener(new KeyAdapter() {
+                        public void keyPressed(KeyEvent e) {
+                                if (stopped)
+                                        return;
+                                synchronized (gameLock) {
+                                        int shapeY = getMinY(gameSquares, currentColor, 10);
+                                        int shapeX = getMinX(gameSquares, currentColor, 10);
+                                        if (e.getKeyCode() == KeyEvent.VK_LEFT) {
+                                                removeShape(gameSquares, currentColor);
+                                                boolean possible = drawShape(gameSquares, shapeX - 1, shapeY, 10,
+                                                                currentColor,
+                                                                currentShape, currentRot);
+                                                if (!possible) {
+                                                        removeShape(gameSquares, currentColor);
+                                                        drawShape(gameSquares, shapeX, shapeY, 10, currentColor,
+                                                                        currentShape,
+                                                                        currentRot);
+                                                }
+                                        } else if (e.getKeyCode() == KeyEvent.VK_RIGHT) {
+                                                removeShape(gameSquares, currentColor);
+                                                boolean possible = drawShape(gameSquares, shapeX + 1, shapeY, 10,
+                                                                currentColor,
+                                                                currentShape, currentRot);
+                                                if (!possible) {
+                                                        removeShape(gameSquares, currentColor);
+                                                        drawShape(gameSquares, shapeX, shapeY, 10, currentColor,
+                                                                        currentShape,
+                                                                        currentRot);
+                                                }
+                                        } else if (e.getKeyCode() == KeyEvent.VK_UP) {
+                                                currentRot++;
+                                                if (currentRot >= SHAPES[currentShape].length) {
+                                                        currentRot = 0;
+                                                }
+                                                removeShape(gameSquares, currentColor);
+                                                boolean possible = drawShape(gameSquares, shapeX, shapeY, 10,
+                                                                currentColor,
+                                                                currentShape, currentRot);
+                                                if (!possible) {
+                                                        currentRot--;
+                                                        if (currentRot < 0) {
+                                                                currentRot = SHAPES[currentShape].length - 1;
+                                                        }
+                                                        removeShape(gameSquares, currentColor);
+                                                        drawShape(gameSquares, shapeX, shapeY, 10, currentColor,
+                                                                        currentShape,
+                                                                        currentRot);
+                                                }
+                                        } else if (e.getKeyCode() == KeyEvent.VK_DOWN) {
+                                                gameTimer.setDelay(100);
+                                        } else if (e.getKeyCode() == KeyEvent.VK_SPACE) {
+                                                int dropCount = 0;
+                                                int maxDrops = 20;
+
+                                                while (dropCount < maxDrops) {
+                                                        shapeY = getMinY(gameSquares, currentColor, 10);
+                                                        shapeX = getMinX(gameSquares, currentColor, 10);
+
+                                                        if (shapeX == 10 || shapeY == 20) {
+                                                                gameTimer.stop();
+                                                                stopped = true;
+                                                                break;
+                                                        }
+
+                                                        removeShape(gameSquares, currentColor);
+                                                        boolean possible = drawShape(gameSquares, shapeX, shapeY + 1,
+                                                                        10,
+                                                                        currentColor, currentShape, currentRot);
+
+                                                        dropCount++;
+
+                                                        if (!possible && !first) {
+                                                                removeShape(gameSquares, currentColor);
+                                                                drawShape(gameSquares, shapeX, shapeY, 10, currentColor,
+                                                                                currentShape, currentRot);
+                                                                currentRot = 0;
+                                                                drawShape(gameSquares, 4, 0, 10, nextColor, nextShape,
+                                                                                currentRot);
+                                                                first = true;
+                                                                currentColor = nextColor;
+                                                                currentShape = nextShape;
+                                                                removeShape(nextSquares, nextColor);
+                                                                nextColor = getColor();
+                                                                nextShape = (int) (Math.random() * SHAPES.length);
+                                                                drawShape(nextSquares, 0, 0, 4, nextColor, nextShape,
+                                                                                0);
+                                                                break;
+                                                        } else if (!possible && first) {
+                                                                removeShape(gameSquares, currentColor);
+                                                                removeShape(nextSquares, nextColor);
+                                                                gameTimer.stop();
+                                                                stopped = true;
+                                                                break;
+                                                        } else {
+                                                                first = false;
+                                                        }
+                                                }
+                                        }
+                                }
                         }
 
-                        try {
-                                Thread.sleep(750);
-                        } catch (InterruptedException e) {
-                                e.printStackTrace();
+                        public void keyReleased(KeyEvent e) {
+                                if (stopped)
+                                        return;
+                                if (e.getKeyCode() == KeyEvent.VK_DOWN) {
+                                        gameTimer.setDelay(750);
+                                }
                         }
-                }
+                });
+
+                gameTimer = new Timer(750, _ -> {
+                        synchronized (gameLock) {
+                                int shapeY = getMinY(gameSquares, currentColor, 10);
+                                int shapeX = getMinX(gameSquares, currentColor, 10);
+                                removeShape(gameSquares, currentColor);
+                                boolean possible = drawShape(gameSquares, shapeX, shapeY + 1, 10, currentColor,
+                                                currentShape,
+                                                currentRot);
+                                if (!possible && !first) {
+                                        removeShape(gameSquares, currentColor);
+                                        drawShape(gameSquares, shapeX, shapeY, 10, currentColor, currentShape,
+                                                        currentRot);
+                                        currentRot = 0;
+                                        drawShape(gameSquares, 4, 0, 10, nextColor, nextShape, currentRot);
+                                        first = true;
+                                        currentColor = nextColor;
+                                        currentShape = nextShape;
+                                        removeShape(nextSquares, nextColor);
+                                        nextColor = getColor();
+                                        nextShape = (int) (Math.random() * SHAPES.length);
+                                        drawShape(nextSquares, 0, 0, 4, nextColor, nextShape, 0);
+                                } else if (!possible && first) {
+                                        removeShape(gameSquares, currentColor);
+                                        removeShape(nextSquares, nextColor);
+                                        gameTimer.stop();
+                                        stopped = true;
+                                } else {
+                                        first = false;
+                                }
+                        }
+                });
+                gameTimer.start();
         }
 
         private static void createSquareLayout(JPanel p, ArrayList<JPanel> squares, int rows, int cols) {
@@ -322,10 +456,10 @@ public class Main {
 
         private static int getHeight(boolean[][] p) {
                 int largestHeight = 0;
-                for (int i = 0; i < p[0].length; i++) {
-                        for (int j = 0; j < p.length; j++) {
-                                if (p[j][i] && j > largestHeight) {
-                                        largestHeight = j;
+                for (int i = 0; i < p.length; i++) {
+                        for (int j = 0; j < p[i].length; j++) {
+                                if (p[i][j] && i > largestHeight) {
+                                        largestHeight = i;
                                 }
                         }
                 }
@@ -341,7 +475,7 @@ public class Main {
                 }
                 boolean[][] pattern = SHAPES[shape][rot];
                 int endIdx = startIdx + getHeight(pattern) * width + getWidth(pattern);
-                if (endIdx >= squares.size()) {
+                if (endIdx >= squares.size() || startX + getWidth(pattern) >= width || startX < 0) {
                         return false;
                 }
                 for (int i = startIdx; i <= endIdx; i++) {
