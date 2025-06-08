@@ -2,3 +2,4 @@
 *.dmg
 *.exe
 *.jar
+target/*

@@ -1,3 +1,5 @@
+package src.main.java;
+
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
@@ -5,7 +7,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.io.File;
+import java.io.BufferedInputStream;
+import java.io.InputStream;
 import java.util.ArrayList;
 
 public class Main {
@@ -246,6 +249,15 @@ public class Main {
         };
         // #endregion
 
+        private static AudioInputStream getBufferedAudioInputStream(String resourcePath) throws Exception {
+                InputStream resourceStream = Main.class.getResourceAsStream(resourcePath);
+                if (resourceStream == null) {
+                        throw new Exception("Resource not found: " + resourcePath);
+                }
+                BufferedInputStream bufferedStream = new BufferedInputStream(resourceStream);
+                return AudioSystem.getAudioInputStream(bufferedStream);
+        }
+
         public static void main(String[] args) throws Exception {
                 frame = new JFrame("Tetris");
                 frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -296,7 +308,7 @@ public class Main {
                 }
                 first = true;
 
-                musicStream = AudioSystem.getAudioInputStream(new File("music.wav").getAbsoluteFile());
+                musicStream = getBufferedAudioInputStream("/music.wav");
                 clip = AudioSystem.getClip();
                 clip.open(musicStream);
                 clip.loop(Clip.LOOP_CONTINUOUSLY);
@@ -397,9 +409,8 @@ public class Main {
                                                                 clip.stop();
                                                                 clip.close();
                                                                 try {
-                                                                        deathStream = AudioSystem.getAudioInputStream(
-                                                                                        new File("death.wav")
-                                                                                                        .getAbsoluteFile());
+                                                                        deathStream = getBufferedAudioInputStream(
+                                                                                        "/death.wav");
                                                                         clip.open(deathStream);
                                                                 } catch (Exception ex) {
                                                                         ex.printStackTrace();
@@ -435,10 +446,8 @@ public class Main {
                                                                         clip.stop();
                                                                         clip.close();
                                                                         try {
-                                                                                musicStream = AudioSystem
-                                                                                                .getAudioInputStream(
-                                                                                                                new File("music.wav")
-                                                                                                                                .getAbsoluteFile());
+                                                                                musicStream = getBufferedAudioInputStream(
+                                                                                                "/music.wav");
                                                                                 clip.open(musicStream);
                                                                         } catch (Exception ex) {
                                                                                 ex.printStackTrace();
@@ -503,8 +512,7 @@ public class Main {
                                         clip.stop();
                                         clip.close();
                                         try {
-                                                deathStream = AudioSystem.getAudioInputStream(
-                                                                new File("death.wav").getAbsoluteFile());
+                                                deathStream = getBufferedAudioInputStream("/death.wav");
                                                 clip.open(deathStream);
                                         } catch (Exception ex) {
                                                 ex.printStackTrace();
@@ -537,8 +545,7 @@ public class Main {
                                                 clip.stop();
                                                 clip.close();
                                                 try {
-                                                        musicStream = AudioSystem.getAudioInputStream(
-                                                                        new File("music.wav").getAbsoluteFile());
+                                                        musicStream = getBufferedAudioInputStream("/music.wav");
                                                         clip.open(musicStream);
                                                 } catch (Exception ex) {
                                                         ex.printStackTrace();
