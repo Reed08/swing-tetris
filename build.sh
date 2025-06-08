@@ -16,21 +16,27 @@ jar cfe Tetris.jar src.main.java.Main -C target .
 # Detect the operating system and set jpackage parameters
 OS=$(uname)
 if [[ "$OS" == "Darwin" ]]; then
-    PACKAGE_TYPE="dmg"
-    ICON="icon.icns"
+    jpackage --input . \
+        --name Tetris \
+        --main-jar Tetris.jar \
+        --main-class src.main.java.Main \
+        --type dmg \
+        --icon icon.icns \
+        --resource-dir src/main/resources \
+        --mac-package-identifier xyz.reed920.Tetris \
+        --mac-sign
 elif [[ "$OS" == MINGW* || "$OS" == MSYS* || "$OS" == CYGWIN* ]]; then
-    PACKAGE_TYPE="exe"
-    ICON="icon.ico"
+    jpackage --input . \
+        --type exe \
+        --name Tetris \
+        --main-jar Tetris.jar \
+        --main-class src.main.java.Main \
+        --icon icon.ico \
+        --win-menu \
+        --win-shortcut 
 else
     echo "Unsupported OS: $OS"
     exit 1
 fi
 
 # Use jpackage to create an executable using resources from src/main/resources
-jpackage --input . \
-    --name Tetris \
-    --main-jar Tetris.jar \
-    --main-class src.main.java.Main \
-    --type "$PACKAGE_TYPE" \
-    --icon "$ICON" \
-    --resource-dir src/main/resources
