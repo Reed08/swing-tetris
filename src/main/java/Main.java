@@ -8,6 +8,9 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 
 /**
  * Main class for the Tetris game.
@@ -299,7 +302,18 @@ public class Main {
                 // JFrame and main panel setup
                 frame = new JFrame("Tetris");
                 frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-                frame.setResizable(false);
+
+                frame.setResizable(true);
+                frame.setSize(500, 500);
+                frame.addComponentListener(new ComponentAdapter() {
+                        @Override
+                        public void componentResized(ComponentEvent e) {
+                                // Ensure that window remains in square aspect ratio
+                                int size = frame.getWidth();
+                                frame.setSize(size, size);
+                        }
+                });
+
                 JPanel panel = new JPanel();
                 panel.setLayout(new GridLayout(1, 2));
                 JPanel gamePanel = new JPanel();
@@ -330,7 +344,6 @@ public class Main {
                 infoPanel.add(nextPanel);
                 panel.add(infoPanel);
                 frame.add(panel);
-                frame.setSize(1000, 1000);
                 frame.setVisible(true);
                 frame.setFocusable(true);
                 frame.requestFocusInWindow();
@@ -795,54 +808,62 @@ public class Main {
          * @param width   Grid width.
          */
         private static void checkCleans(ArrayList<JPanel> squares, int width) {
-                ArrayList<Integer> toClean = new ArrayList<Integer>();
-                // Scan from bottom up for full lines
-                for (int i = squares.size() / width - 1; i >= 0; i--) {
-                        boolean isClean = true;
-                        for (int j = 0; j < width; j++) {
-                                if (squares.get(i * width + j).getBackground().equals(Color.WHITE)) {
-                                        isClean = false;
+                int numRows = squares.size() / width;
+                ArrayList<Integer> fullRows = new ArrayList<>();
+                // 1) collect full rows
+                for (int row = 0; row < numRows; row++) {
+                        boolean full = true;
+                        for (int col = 0; col < width; col++) {
+                                if (squares.get(row * width + col).getBackground().equals(Color.WHITE)) {
+                                        full = false;
                                         break;
                                 }
                         }
-                        if (isClean) {
-                                cleans++;
-                                toClean.add(i);
-                        } else {
-                                // If there are lines to clear, clear them and update score
-                                if (toClean.size() > 0) {
-                                        for (int j = toClean.get(0); j <= toClean.get(toClean.size() - 1); j++) {
-                                                for (int k = 0; k < width; k++) {
-                                                        squares.get(j * width + k)
-                                                                        .setBackground(Color.WHITE);
-                                                }
-                                        }
-                                        // Scoring logic: more lines = more points
-                                        if (toClean.size() == 1) {
-                                                points += 40;
-                                                cleans += 1;
-                                                pointsLabel.setText("Points: " + points);
-                                                cleansLabel.setText("Cleans: " + cleans);
-                                        } else if (toClean.size() == 2) {
-                                                points += 100;
-                                                cleans += 2;
-                                                pointsLabel.setText("Points: " + points);
-                                                cleansLabel.setText("Cleans: " + cleans);
-                                        } else if (toClean.size() == 3) {
-                                                points += 300;
-                                                cleans += 3;
-                                                pointsLabel.setText("Points: " + points);
-                                                cleansLabel.setText("Cleans: " + cleans);
-                                        } else {
-                                                // For 4 or more lines (should only be 4 in Tetris), bonus points
-                                                points += 300 * toClean.size();
-                                                cleans += toClean.size();
-                                                pointsLabel.setText("Points: " + points);
-                                                cleansLabel.setText("Cleans: " + cleans);
-                                        }
-                                        toClean.clear();
-                                }
+                        if (full) {
+                                fullRows.add(row);
                         }
                 }
+                if (fullRows.isEmpty()) {
+                        return;
+                }
+                // 2) clear each full row
+                for (int row : fullRows) {
+                        for (int col = 0; col < width; col++) {
+                                squares.get(row * width + col).setBackground(Color.WHITE);
+                        }
+                }
+                // 3) shift down rows above each cleared line
+                Collections.sort(fullRows);
+                for (int rowIndex : fullRows) {
+                        for (int r = rowIndex; r > 0; r--) {
+                                for (int col = 0; col < width; col++) {
+                                        Color above = squares.get((r - 1) * width + col).getBackground();
+                                        squares.get(r * width + col).setBackground(above);
+                                }
+                        }
+                        // clear the now‐vacant top row
+                        for (int col = 0; col < width; col++) {
+                                squares.get(col).setBackground(Color.WHITE);
+                        }
+                }
+                // 4) update score & cleans
+                int lines = fullRows.size();
+                cleans += lines;
+                switch (lines) {
+                        case 1:
+                                points += 40;
+                                break;
+                        case 2:
+                                points += 100;
+                                break;
+                        case 3:
+                                points += 300;
+                                break;
+                        default:
+                                points += 1200;
+                                break; // tetris
+                }
+                pointsLabel.setText("Points: " + points);
+                cleansLabel.setText("Cleans: " + cleans);
         }
 }

@@ -5,7 +5,7 @@ APP_PROC="java"                    # the process name System Events sees
 WINDOW_TITLE="Tetris"  # your exact JFrame title in the title bar
 # ────────────────────────────────────────────────────────────────────────────────
 
-while fswatch -1 Main.java; do
+while fswatch -1 src/main/java/Main.java; do
   echo "🔄 Change detected – restarting…"
 
   # 1) Grab old window position, or "nil"
@@ -27,10 +27,10 @@ EOF
   echo "Old position: $oldpos"
 
   # 2) Kill any running "java Main"
-  pkill -f 'java Main' 2>/dev/null || true
+  pkill -f 'java src/main/java/Main' 2>/dev/null || true
 
   # 3) Recompile & relaunch in background
-  javac Main.java && java Main &
+  javac src/main/java/Main.java && java src/main/java/Main &
 
   # 4) If we have a valid oldpos, wait for the new GUI then reposition
   if [[ "$oldpos" != "nil" ]]; then
